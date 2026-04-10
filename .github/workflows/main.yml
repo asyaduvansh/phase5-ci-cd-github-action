@@ -1,0 +1,31 @@
+name: My First Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  hello-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Say Hello
+        run: echo "Hello from GitHub Actions!"
+
+      - name: Show current folder
+        run: pwd
+
+      - name: List all files
+        run: ls -la
+
+      - name: Print Python version
+        run: python3 --version
+
+      - name: Print Docker version
+        run: docker --version
+
+      - name: Success message
+        run: echo "Pipeline completed successfully!"
