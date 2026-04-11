@@ -1,4 +1,4 @@
-name: DevGuard CI - Docker Build
+name: DevGuard CI - Build and Push to Docker Hub
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  build-image:
+  build-and-push:
     runs-on: ubuntu-latest
     
     steps:
@@ -16,33 +16,20 @@ jobs:
       - name: Show files in workspace
         run: ls -la
 
-      - name: Verify Dockerfile exists
-        run: |
-          if [ -f Dockerfile ]; then
-            echo "Dockerfile found!"
-            cat Dockerfile
-          else
-            echo "ERROR: Dockerfile not found!"
-            exit 1
-          fi
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker image
-        run: docker build -t devguard-pro:ci-test .
-
-      - name: Show built images
-        run: docker images
-
-      - name: Test secrets are accessible
-        run: |
-          echo "Username length: ${#USERNAME}"
-          echo "Password length: ${#PASSWORD}"
-          echo "Username starts with: ${USERNAME:0:3}***"
-        env:
-          USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/devguard-pro:latest
 
       - name: Success message
-        run: echo "Docker image built successfully in CI!"
-
-      - name: Try to print secret
-        run: echo "${{ secrets.DOCKER_PASSWORD }}"
+        run: |
+          echo "Image pushed successfully!"
+          echo "Pull it with: docker pull ${{ secrets.DOCKER_USERNAME }}/devguard-pro:latest"
