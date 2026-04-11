@@ -1,4 +1,4 @@
-name: My First Pipeline
+name: DevGuard CI - Docker Build
 
 on:
   push:
@@ -6,26 +6,31 @@ on:
       - main
 
 jobs:
-  hello-job:
+  build-image:
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Say Hello
-        run: echo "Hello from GitHub Actions!"
-
-      - name: Show current folder
-        run: pwd
-
-      - name: List all files
+      - name: Show files in workspace
         run: ls -la
 
-      - name: Print Python version
-        run: python3 --version
+      - name: Verify Dockerfile exists
+        run: |
+          if [ -f Dockerfile ]; then
+            echo "Dockerfile found!"
+            cat Dockerfile
+          else
+            echo "ERROR: Dockerfile not found!"
+            exit 1
+          fi
 
-      - name: Print Docker version
-        run: docker --version
+      - name: Build Docker image
+        run: docker build -t devguard-pro:ci-test .
+
+      - name: Show built images
+        run: docker images
 
       - name: Success message
-        run: echo "Pipeline completed successfully!"
+        run: echo "Docker image built successfully in CI!"
