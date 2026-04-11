@@ -32,5 +32,14 @@ jobs:
       - name: Show built images
         run: docker images
 
+      - name: Test secrets are accessible
+        run: |
+          echo "Username length: ${#USERNAME}"
+          echo "Password length: ${#PASSWORD}"
+          echo "Username starts with: ${USERNAME:0:3}***"
+        env:
+          USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
       - name: Success message
         run: echo "Docker image built successfully in CI!"
