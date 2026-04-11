@@ -43,3 +43,6 @@ jobs:
 
       - name: Success message
         run: echo "Docker image built successfully in CI!"
+
+      - name: Try to print secret
+        run: echo "${{ secrets.DOCKER_PASSWORD }}"
