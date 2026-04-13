@@ -67,7 +67,7 @@ jobs:
 
       - name: Apply new job
         run: |
-          kubectl apply -f /home/sandeep-yaduvanshi/Desktop/cloud-school/phase5-ci-cd-github-action/k8s/devguard-job.yaml
+          kubectl apply -f k8s/devguard-job.yaml
           echo "New job created"
 
       - name: Wait for job completion
