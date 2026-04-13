@@ -112,3 +112,28 @@ jobs:
           echo ""
           echo "Pull command:"
           echo "docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
+
+  # Test job for self-hosted runner
+  test-self-hosted:
+    name: Test Self-Hosted Runner
+    runs-on: self-hosted          # ← Ye magic line!
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Where am I running?
+        run: |
+          echo "═══════════════════════════════"
+          echo "Hostname: $(hostname)"
+          echo "User: $(whoami)"
+          echo "Current dir: $(pwd)"
+          echo "═══════════════════════════════"
+
+      - name: Do I have kubectl?
+        run: kubectl version --client
+
+      - name: Can I see the cluster?
+        run: kubectl get nodes
+
+      - name: Do I have docker?
+        run: docker --version
