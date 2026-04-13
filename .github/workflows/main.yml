@@ -68,6 +68,7 @@ jobs:
       - name: Apply new job
         run: |
           pwd
+          cd
           kubectl apply -f /home/sandeep-yaduvandhi/Desktop/cloud-school/phase5-ci-cd-github-action/k8s/devguard-job.yaml
           echo "New job created"
 
