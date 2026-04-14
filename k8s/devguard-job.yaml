@@ -7,7 +7,7 @@ spec:
     spec:
       containers:
       - name: devguard
-        image: asyaduvansh/devguard-pro:latest
+        image: IMAGE_PLACEHOLDER
         imagePullPolicy: Always
         env:
         - name: DOCKER_ENV

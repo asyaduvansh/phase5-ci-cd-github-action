@@ -43,11 +43,11 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:la
 
   deploy-to-k8s:
     name: Deploy to Kubernetes
-    runs-on: self-hosted          # ← SELF-HOSTED RUNNER!
+    runs-on: self-hosted
     needs: build-and-push
     steps:
       - name: Checkout code
@@ -55,32 +55,36 @@ jobs:
 
       - name: Verify cluster connection
         run: |
-          echo "═══════════════════════════════════"
-          echo "Checking cluster access..."
+          echo "═══════════════════════════════"
           kubectl get nodes
-          echo "═══════════════════════════════════"
+          echo "═══════════════════════════════"
+
+      - name: Prepare job manifest with commit SHA
+        run: |
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "Deploying image: $IMAGE"
+          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE|g" k8s/devguard-job.yaml
+          echo "───── Final YAML ─────"
+          cat k8s/devguard-job.yaml
+          echo "──────────────────────"
 
       - name: Delete old job (if exists)
-        run: |
-          kubectl delete job devguard-job --ignore-not-found
-          echo "Old job cleaned up"
+        run: kubectl delete job devguard-job --ignore-not-found
 
       - name: Apply new job
-        run: |
-          kubectl apply -f k8s/devguard-job.yaml
-          echo "New job created"
+        run: kubectl apply -f k8s/devguard-job.yaml
 
       - name: Wait for job completion
         run: |
           echo "Waiting for job to complete..."
           kubectl wait --for=condition=complete --timeout=120s job/devguard-job
-          echo "Job completed successfully!"
+          echo "Job completed!"
 
       - name: Show job logs
         run: |
-          echo "═══════════════════════════════════"
+          echo "═══════════════════════════════"
           echo "JOB LOGS:"
-          echo "═══════════════════════════════════"
+          echo "═══════════════════════════════"
           kubectl logs job/devguard-job
 
       - name: Deployment summary
@@ -89,7 +93,7 @@ jobs:
           echo "═══════════════════════════════════"
           echo "✅ DEPLOYMENT SUCCESSFUL!"
           echo "═══════════════════════════════════"
-          echo "Image: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest"
-          echo "Cluster: $(kubectl config current-context)"
+          echo "Image: ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "Commit: ${{ github.sha }}"
           echo "Triggered by: ${{ github.actor }}"
           echo "═══════════════════════════════════"
