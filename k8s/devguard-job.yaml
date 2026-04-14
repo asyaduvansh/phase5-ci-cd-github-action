@@ -2,6 +2,7 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: devguard-job
+  namespace: NAMESPACE_PLACEHOLDER     # ← naya placeholder!
 spec:
   template:
     spec:
@@ -12,7 +13,7 @@ spec:
         env:
         - name: DOCKER_ENV
           value: "true"
-        - name: LOG_DIR
-          value: "/app/logs"
+        - name: ENVIRONMENT
+          value: "ENV_PLACEHOLDER"      # ← bonus: pod ko bhi pata chale
       restartPolicy: Never
   backoffLimit: 2

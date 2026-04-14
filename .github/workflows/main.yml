@@ -85,93 +85,97 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            echo "namespace=prod" >> $GITHUB_OUTPUT
+            echo "env_name=production" >> $GITHUB_OUTPUT
+            echo "🎯 Target: PRODUCTION"
+          elif [ "${{ github.ref }}" = "refs/heads/develop" ]; then
+            echo "namespace=dev" >> $GITHUB_OUTPUT
+            echo "env_name=development" >> $GITHUB_OUTPUT
+            echo "🔧 Target: DEVELOPMENT"
+          else
+            echo "❌ Unknown branch — skipping deployment"
+            exit 1
+          fi
+
       - name: Pre-flight cluster check
         run: |
           echo "═══════════════════════════════════════"
           echo "🔍 PRE-FLIGHT CHECKS"
           echo "═══════════════════════════════════════"
-          echo "Cluster context: $(kubectl config current-context)"
+          echo "Cluster: $(kubectl config current-context)"
+          echo "Target namespace: ${{ steps.env.outputs.namespace }}"
+          echo "Environment: ${{ steps.env.outputs.env_name }}"
           echo ""
-          echo "Cluster nodes:"
           kubectl get nodes
-          echo ""
-          echo "Current jobs in cluster:"
-          kubectl get jobs || echo "(no jobs)"
           echo "═══════════════════════════════════════"
 
-      - name: Prepare job manifest with SHA tag
+      - name: Prepare manifest with dynamic values
         run: |
           IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          echo "🏷️  Injecting image tag: $IMAGE"
+          NAMESPACE="${{ steps.env.outputs.namespace }}"
+          ENV_NAME="${{ steps.env.outputs.env_name }}"
+          
+          echo "🏷️  Image: $IMAGE"
+          echo "📦 Namespace: $NAMESPACE"
+          echo "🌍 Environment: $ENV_NAME"
+          
           sed -i "s|IMAGE_PLACEHOLDER|$IMAGE|g" k8s/devguard-job.yaml
+          sed -i "s|NAMESPACE_PLACEHOLDER|$NAMESPACE|g" k8s/devguard-job.yaml
+          sed -i "s|ENV_PLACEHOLDER|$ENV_NAME|g" k8s/devguard-job.yaml
+          
           echo ""
-          echo "───── Final Job Manifest ─────"
+          echo "───── Final Manifest ─────"
           cat k8s/devguard-job.yaml
-          echo "──────────────────────────────"
+          echo "──────────────────────────"
 
-      - name: Clean up previous job
+      - name: Clean up old job
         run: |
-          echo "🧹 Cleaning up previous job..."
-          kubectl delete job devguard-job --ignore-not-found
+          kubectl delete job devguard-job \
+            -n ${{ steps.env.outputs.namespace }} \
+            --ignore-not-found
           echo "✅ Cleanup complete"
 
       - name: Deploy new job
         run: |
-          echo "🚀 Applying new job manifest..."
           kubectl apply -f k8s/devguard-job.yaml
-          echo "✅ Job created"
+          echo "✅ Job deployed to ${{ steps.env.outputs.namespace }}"
 
-      - name: Wait for job to complete
+      - name: Wait for completion
         run: |
-          echo "⏳ Waiting for job to complete (timeout: 120s)..."
           kubectl wait --for=condition=complete \
             --timeout=120s \
+            -n ${{ steps.env.outputs.namespace }} \
             job/devguard-job
-          echo "✅ Job completed successfully"
 
-      - name: Show pod details
+      - name: Show pod logs
         run: |
           echo "═══════════════════════════════════════"
-          echo "📊 POD DETAILS"
+          echo "📜 LOGS FROM ${{ steps.env.outputs.env_name }}"
           echo "═══════════════════════════════════════"
-          kubectl get pods -l job-name=devguard-job
-          echo "═══════════════════════════════════════"
-
-      - name: Show application logs
-        run: |
-          echo "═══════════════════════════════════════"
-          echo "📜 APPLICATION OUTPUT"
-          echo "═══════════════════════════════════════"
-          kubectl logs job/devguard-job
-          echo "═══════════════════════════════════════"
+          kubectl logs -n ${{ steps.env.outputs.namespace }} job/devguard-job
 
       - name: Deployment summary
         if: success()
         run: |
           echo ""
           echo "═══════════════════════════════════════════════════"
-          echo "🎉  DEPLOYMENT SUCCESSFUL"
+          echo "🎉  DEPLOYED TO ${{ steps.env.outputs.env_name }}"
           echo "═══════════════════════════════════════════════════"
-          echo "📦 Image:      ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
-          echo "🏷️  Commit:     ${{ github.sha }}"
-          echo "👤 Author:     ${{ github.actor }}"
-          echo "🌿 Branch:     ${{ github.ref_name }}"
-          echo "⏰ Run ID:     ${{ github.run_id }}"
-          echo "🎯 Cluster:    $(kubectl config current-context)"
+          echo "📦 Image:       ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "🌍 Environment: ${{ steps.env.outputs.env_name }}"
+          echo "📂 Namespace:   ${{ steps.env.outputs.namespace }}"
+          echo "🌿 Branch:      ${{ github.ref_name }}"
+          echo "👤 Author:      ${{ github.actor }}"
           echo "═══════════════════════════════════════════════════"
 
       - name: Failure diagnostics
         if: failure()
         run: |
-          echo "═══════════════════════════════════════"
-          echo "❌ DEPLOYMENT FAILED"
-          echo "═══════════════════════════════════════"
-          echo "Pods status:"
-          kubectl get pods -l job-name=devguard-job || true
-          echo ""
-          echo "Job description:"
-          kubectl describe job devguard-job || true
-          echo ""
-          echo "Pod logs (if any):"
-          kubectl logs job/devguard-job --tail=50 || true
-          echo "═══════════════════════════════════════"
+          NS=${{ steps.env.outputs.namespace }}
+          kubectl get pods -n $NS -l job-name=devguard-job || true
+          kubectl describe job devguard-job -n $NS || true
+          kubectl logs job/devguard-job -n $NS --tail=50 || true
