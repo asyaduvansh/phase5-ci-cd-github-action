@@ -9,3 +9,6 @@ Work in progress — Week 1
 ## Updated
 First successful pipeline run! ✅
 Build test 2
+
+## Add new pipeline
+Seprate build test and push
