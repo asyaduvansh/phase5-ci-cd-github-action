@@ -10,5 +10,7 @@ Work in progress — Week 1
 First successful pipeline run! ✅
 Build test 2
 
-## Add new pipeline
-Seprate build test and push
+## branches
+-main: production
+-develop: development
+
