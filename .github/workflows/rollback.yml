@@ -1,0 +1,159 @@
+name: 🔄 Rollback Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to rollback to (first 7+ chars)'
+        required: true
+        type: string
+      reason:
+        description: 'Reason for rollback'
+        required: true
+        type: string
+      confirm:
+        description: 'Type "ROLLBACK" to confirm'
+        required: true
+        type: string
+
+env:
+  IMAGE_NAME: devguard-pro
+
+jobs:
+
+  validate:
+    name: ✅ Validate Rollback Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "ROLLBACK" ]; then
+            echo "❌ Confirmation failed!"
+            echo "You must type 'ROLLBACK' exactly to proceed."
+            exit 1
+          fi
+          echo "✅ Confirmation valid"
+          
+      - name: Log rollback request
+        run: |
+          echo "═══════════════════════════════════════════"
+          echo "🔄 ROLLBACK REQUEST"
+          echo "═══════════════════════════════════════════"
+          echo "Target SHA:    ${{ github.event.inputs.commit_sha }}"
+          echo "Reason:        ${{ github.event.inputs.reason }}"
+          echo "Requested by:  ${{ github.actor }}"
+          echo "Timestamp:     $(date)"
+          echo "═══════════════════════════════════════════"
+
+  rollback:
+    name: 🔄 Execute Rollback
+    runs-on: self-hosted
+    needs: validate
+    environment:
+      name: production          # ← Approval still required!
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify image exists in Docker Hub
+        run: |
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.commit_sha }}"
+          echo "🔍 Checking if image exists: $IMAGE"
+          
+          # Docker pull to verify (runner pe already docker hai)
+          if docker pull "$IMAGE"; then
+            echo "✅ Image found and pulled"
+          else
+            echo "❌ Image not found in Docker Hub!"
+            echo "   Verify the SHA is correct."
+            exit 1
+          fi
+
+      - name: Pre-flight cluster check
+        run: |
+          echo "Cluster: $(kubectl config current-context)"
+          echo "Target namespace: prod"
+          kubectl get nodes
+
+      - name: Show current deployment
+        run: |
+          echo "═══════════════════════════════════════"
+          echo "📊 CURRENT STATE (before rollback)"
+          echo "═══════════════════════════════════════"
+          kubectl get jobs -n prod || echo "(no jobs)"
+          kubectl get pods -n prod || echo "(no pods)"
+
+      - name: Prepare rollback manifest
+        run: |
+          IMAGE="${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.commit_sha }}"
+          
+          echo "🏷️  Rolling back to: $IMAGE"
+          
+          sed -i "s|IMAGE_PLACEHOLDER|$IMAGE|g" k8s/devguard-job.yaml
+          sed -i "s|NAMESPACE_PLACEHOLDER|prod|g" k8s/devguard-job.yaml
+          sed -i "s|ENV_PLACEHOLDER|production-rollback|g" k8s/devguard-job.yaml
+          
+          echo ""
+          echo "───── Rollback Manifest ─────"
+          cat k8s/devguard-job.yaml
+          echo "─────────────────────────────"
+
+      - name: Delete current job
+        run: |
+          echo "🗑️  Removing current production job..."
+          kubectl delete job devguard-job -n prod --ignore-not-found
+          echo "✅ Current job removed"
+
+      - name: Deploy rollback version
+        run: |
+          echo "🚀 Deploying rollback version..."
+          kubectl apply -f k8s/devguard-job.yaml
+          echo "✅ Rollback deployed"
+
+      - name: Wait for rollback completion
+        run: |
+          echo "⏳ Waiting for rollback job to complete..."
+          kubectl wait --for=condition=complete \
+            --timeout=120s \
+            -n prod \
+            job/devguard-job
+          echo "✅ Rollback job completed"
+
+      - name: Show rollback logs
+        run: |
+          echo "═══════════════════════════════════════"
+          echo "📜 ROLLBACK JOB LOGS"
+          echo "═══════════════════════════════════════"
+          kubectl logs -n prod job/devguard-job
+          echo "═══════════════════════════════════════"
+
+      - name: Rollback summary
+        if: success()
+        run: |
+          echo ""
+          echo "═══════════════════════════════════════════════════"
+          echo "✅  ROLLBACK SUCCESSFUL"
+          echo "═══════════════════════════════════════════════════"
+          echo "🔙 Rolled back to: ${{ github.event.inputs.commit_sha }}"
+          echo "📝 Reason:         ${{ github.event.inputs.reason }}"
+          echo "👤 Executed by:    ${{ github.actor }}"
+          echo "⏰ Timestamp:      $(date)"
+          echo "🌍 Environment:    production"
+          echo "═══════════════════════════════════════════════════"
+          echo ""
+          echo "🔔 NEXT STEPS:"
+          echo "  1. Verify application health"
+          echo "  2. Notify team about rollback"
+          echo "  3. Investigate root cause of failure"
+          echo "  4. Create hotfix PR"
+
+      - name: Rollback failure
+        if: failure()
+        run: |
+          echo "═══════════════════════════════════════"
+          echo "❌ ROLLBACK FAILED!"
+          echo "═══════════════════════════════════════"
+          echo "🚨 CRITICAL: Manual intervention required!"
+          echo ""
+          kubectl get pods -n prod
+          kubectl describe job devguard-job -n prod || true
