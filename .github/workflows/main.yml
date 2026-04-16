@@ -17,7 +17,7 @@ jobs:
   # JOB 1 · TEST
   # ═══════════════════════════════════════════════════
   test:
-    name: 🧪 Run Tests
+    name: 🧪 Run Tests with Coverage
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -32,15 +32,34 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest pytest-cov
 
-      - name: Run pytest
-        run: pytest tests/ -v
+      - name: Run tests with coverage
+        run: |
+          pytest tests/ -v \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --junit-xml=test-results.xml
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results.xml
+            coverage.xml
+          retention-days: 30
 
       - name: Test summary
         if: success()
-        run: echo "✅ All tests passed — ready to build"
-
+        run: |
+          echo "═══════════════════════════════════════"
+          echo "✅ ALL TESTS PASSED"
+          echo "═══════════════════════════════════════"
+          echo "📊 Coverage report uploaded as artifact"
+          echo "📁 JUnit XML uploaded for analysis"
   # ═══════════════════════════════════════════════════
   # JOB 2 · BUILD + PUSH
   # ═══════════════════════════════════════════════════

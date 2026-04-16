@@ -1,0 +1,22 @@
+[run]
+source = src
+omit = 
+    tests/*
+    */venv/*
+
+[report]
+# Lines jo coverage mein count nahi karne
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+
+# Show missing line numbers
+show_missing = True
+
+# Skip 100% covered files in report
+skip_covered = False
+
+# Round coverage percentage
+precision = 2
