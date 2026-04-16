@@ -9,7 +9,7 @@ import pytest
 
 
 # ═══════════════════════════════════════════
-# UNIT TESTS — Basic Python sanity
+# UNIT's TESTS — Basic Python sanity
 # ═══════════════════════════════════════════
 
 class TestPythonEnvironment:
